@@ -10,6 +10,8 @@ import { RegisterModule } from './register/register.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AuthModule } from './auth/auth.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { TenantsModule } from './tenants/tenants.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { AuthModule } from './auth/auth.module';
     RegisterModule,
     PaymentsModule,
     AssignmentsModule,
+    PrismaModule,
+    TenantsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
