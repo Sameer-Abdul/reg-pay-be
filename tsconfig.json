@@ -5,7 +5,8 @@
       "@auth/*": ["src/auth/*"],
       "@decorators/*": ["src/auth/decorators/*"],
       "@guards/*": ["src/auth/guards/*"],
-      "@enums/*": ["src/auth/enums/*"]
+      "@enums/*": ["src/common/enums/*"],
+      "@common/enums/*": ["src/common/enums/*"]
     },
     "module": "Node16",
     "moduleResolution": "Node16",

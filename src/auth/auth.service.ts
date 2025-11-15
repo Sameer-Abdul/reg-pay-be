@@ -1,39 +1,60 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Register } from '../register/entities/register.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(Register)
-    private readonly registerRepository: Repository<Register>,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.registerRepository.findOne({ 
+    // Find user with tenant information
+    const user = await this.prisma.register.findUnique({
       where: { email },
-      relations: ['tenant']
+      include: {
+        tenant_master: true
+      }
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Check if user's account is active
+    if (!user.isActive) {
+      throw new UnauthorizedException('Your account is inactive. Please contact support.');
+    }
+
+    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Check if user has a valid license
-    const isLicenseValid = await this.validateTenantLicense(user.tenantId);
-    if (!isLicenseValid) {
-      throw new UnauthorizedException('Your license has expired. Please contact the administrator.');
+    // Check if user has a tenant associated
+    if (!user.tenantId) {
+      throw new UnauthorizedException('No tenant associated with this account');
     }
 
+    // Validate tenant's license
+    const licenseValidation = await this.validateTenantLicense(user.tenantId);
+    
+    if (!licenseValidation.isValid) {
+      if (licenseValidation.reason === 'NO_LICENSE') {
+        throw new UnauthorizedException('No valid license found for this tenant. Please contact your administrator.');
+      } else if (licenseValidation.reason === 'EXPIRED') {
+        throw new UnauthorizedException(`Your license has expired on ${new Date(licenseValidation.license?.valid_to).toLocaleDateString()}. Please renew your license.`);
+      } else if (licenseValidation.reason === 'INACTIVE') {
+        throw new UnauthorizedException('Your license is currently inactive. Please contact support.');
+      } else {
+        throw new UnauthorizedException('License validation failed. Please contact support.');
+      }
+    }
+
+    // Return user data without sensitive information
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash, ...result } = user;
     return result;
@@ -59,21 +80,63 @@ export class AuthService {
     };
   }
 
-  private async validateTenantLicense(tenantId: string): Promise<boolean> {
-    // Get the current date
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  private async validateTenantLicense(tenantId: string): Promise<{
+    isValid: boolean;
+    reason?: 'NO_LICENSE' | 'EXPIRED' | 'INACTIVE' | 'VALID';
+    license?: any;
+  }> {
+    try {
+      // Get the current date
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    // Query the license table to check for a valid license
-    const license = await this.registerRepository.manager.query(`
-      SELECT * FROM license 
-      WHERE tenant_id = $1 
-      AND valid_from <= $2 
-      AND valid_to >= $2
-      AND eligible_for_license = 'Yes'
-      LIMIT 1
-    `, [tenantId, today]);
+      // Get the most recent license for the tenant using Prisma
+      const license = await this.prisma.license.findFirst({
+        where: {
+          tenant_id: tenantId
+        },
+        orderBy: {
+          valid_to: 'desc'
+        },
+        take: 1
+      });
 
-    return license.length > 0;
+      // No license found
+      if (!license) {
+        return { isValid: false, reason: 'NO_LICENSE' };
+      }
+
+      // Check if license is active
+      if (license.eligible_for_license !== 'Yes') {
+        return { 
+          isValid: false, 
+          reason: 'INACTIVE',
+          license 
+        };
+      }
+
+      // Check if license is expired
+      const validTo = new Date(license.valid_to);
+      if (validTo < today) {
+        return { 
+          isValid: false, 
+          reason: 'EXPIRED',
+          license 
+        };
+      }
+
+      // License is valid
+      return { 
+        isValid: true, 
+        reason: 'VALID',
+        license 
+      };
+    } catch (error) {
+      console.error('Error validating license:', error);
+      return { 
+        isValid: false, 
+        reason: 'NO_LICENSE' 
+      };
+    }
   }
 }

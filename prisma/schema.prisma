@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
@@ -15,10 +9,196 @@ datasource db {
 }
 
 model tenant_master {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(255)
-  created_at DateTime @default(now()) @map("created_at")
-  updated_at DateTime @updatedAt @map("updated_at")
+  tenant_id  String     @id @db.VarChar(10)
+  name       String     @db.VarChar(100)
+  email      String     @unique @db.VarChar(100)
+  contact_no String?    @db.VarChar(15)
+  address    String?    @db.Text
+  image_url  String?    @db.Text
+  created_at DateTime?  @default(now()) @map("created_at") @db.Timestamp(6)
+  updated_at DateTime?  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  license    license[]
+  register   register[]
 
   @@map("tenant_master")
+}
+
+model assignments {
+  id                Int       @id @default(autoincrement())
+  register_id       Int
+  file_name         String    @db.VarChar(255)
+  file_data         Bytes?
+  file_size         Int
+  file_type         String    @db.VarChar(100)
+  submission_date   DateTime? @default(now()) @db.Timestamptz(6)
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  rating            Int?
+  context           String?   @db.VarChar(255)
+  first_name        String?   @db.VarChar(100)
+  last_name         String?   @db.VarChar(100)
+  register_state    String?   @db.VarChar(100)
+  register_district String?   @db.VarChar(100)
+  register_mandal   String?   @db.VarChar(100)
+  register          register  @relation(fields: [register_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_assignments_register")
+
+  @@index([rating], map: "idx_assignments_rating")
+  @@index([register_id], map: "idx_assignments_register_id")
+}
+
+model event {
+  id                   Int           @id @default(autoincrement())
+  name                 String        @db.VarChar(200)
+  mode_of_event        String?       @default("In-Person") @db.VarChar(50)
+  date                 DateTime      @db.Date
+  start_time           DateTime      @db.Time(6)
+  end_time             DateTime      @db.Time(6)
+  venue                String
+  latitude             String?       @db.VarChar(50)
+  longitude            String?       @db.VarChar(50)
+  organization_name    String?       @db.VarChar(200)
+  organization_contact String?       @db.VarChar(15)
+  organization_email   String?       @db.VarChar(100)
+  performance_type     String?       @db.VarChar(50)
+  created_by           Int?
+  created_at           DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at           DateTime?     @default(now()) @db.Timestamp(6)
+  event_coordinator    String?       @db.VarChar(100)
+  additional_comments  String?
+  organization_poc     String?
+  zoom_meeting_id      String?
+  zoom_join_url        String?
+  zoom_host_url        String?
+  zoom_password        String?
+  register             register?     @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  participant          participant[]
+}
+
+model license {
+  license_id           String         @id @db.VarChar(10)
+  license_type         String         @db.VarChar(50)
+  valid_from           DateTime       @db.Date
+  valid_to             DateTime       @db.Date
+  tenant_id            String?        @db.VarChar(10)
+  eligible_for_license String?        @default("Yes") @db.VarChar(5)
+  created_at           DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at           DateTime?      @default(now()) @db.Timestamp(6)
+  tenant_master        tenant_master? @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model locations {
+  id       Int        @id @default(autoincrement())
+  state    String     @db.VarChar(100)
+  district String     @db.VarChar(100)
+  mandal   String     @db.VarChar(100)
+  register register[]
+}
+
+model migrations {
+  id        Int    @id(map: "PK_8c82d7f526340ab734260ea46be") @default(autoincrement())
+  timestamp BigInt
+  name      String @db.VarChar
+}
+
+model notification_logs {
+  id             Int       @id @default(autoincrement())
+  event_id       Int
+  recipient_type String    @db.VarChar(20)
+  recipient_id   String    @db.VarChar(100)
+  message_type   String    @db.VarChar(20)
+  status         String    @db.VarChar(20)
+  error_message  String?
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model participant {
+  id                      Int       @id @default(autoincrement())
+  event_id                Int?
+  name                    String?   @db.VarChar(100)
+  age                     Int?
+  phone_no                String?   @db.VarChar(15)
+  email                   String?   @db.VarChar(100)
+  address                 String?
+  gender                  String?   @db.VarChar(10)
+  latitude                String?   @db.VarChar(50)
+  longitude               String?   @db.VarChar(50)
+  prerequisites_completed Boolean?
+  created_at              DateTime? @default(now()) @db.Timestamp(6)
+  event                   event?    @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model payments {
+  id                                      String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  utr_number                              String    @db.VarChar(50)
+  screenshot_path                         String?   @db.VarChar
+  screenshot_mime_type                    String?   @db.VarChar
+  original_filename                       String?   @db.VarChar
+  file_size                               Int?
+  created_at                              DateTime  @default(now()) @db.Timestamp(6)
+  updated_at                              DateTime  @default(now()) @db.Timestamp(6)
+  register_id                             Int?
+  register_payments_register_idToregister register? @relation("payments_register_idToregister", fields: [register_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_payment_register")
+  register_register_payment_idTopayments  register? @relation("register_payment_idTopayments")
+}
+
+model register {
+  id                                      Int           @id @default(autoincrement())
+  first_name                              String        @db.VarChar
+  middle_name                             String?       @db.VarChar
+  last_name                               String        @db.VarChar
+  mobile_no                               String        @db.VarChar
+  email                                   String        @unique @db.VarChar
+  marital_status                          String        @db.VarChar
+  marriage_date                           DateTime?     @db.Timestamptz(6)
+  address                                 String
+  gender                                  String        @db.VarChar
+  course                                  String        @default("Award Nomination") @db.VarChar
+  state                                   String        @db.VarChar
+  district                                String        @db.VarChar
+  mandal                                  String        @db.VarChar
+  designation                             String        @db.VarChar
+  highest_class_i_teach                   String        @db.VarChar
+  school_correspondent_name               String        @db.VarChar
+  school_correspondent_phone              String        @db.VarChar
+  school_correspondent_email              String        @db.VarChar
+  utr_number                              String?       @db.VarChar(50)
+  payment_screenshot                      Bytes?
+  screenshot_mime_type                    String?       @db.VarChar
+  created_at                              DateTime      @default(now()) @db.Timestamp(6)
+  payment_id                              String?       @unique @db.Uuid
+  updated_at                              DateTime?     @default(now()) @db.Timestamptz(6)
+  payment_screenshot_path                 String?
+  password_hash                           String?       @db.VarChar(255)
+  tenant_id                               String        @db.VarChar(20)
+  is_admin                                Boolean?      @default(false)
+  role                                    String        @default("user") @db.VarChar(20)
+  location_id                             Int?
+  assignments                             assignments[]
+  event                                   event[]
+  payments_payments_register_idToregister payments[]    @relation("payments_register_idToregister")
+  payments_register_payment_idTopayments  payments?     @relation("register_payment_idTopayments", fields: [payment_id], references: [id], onUpdate: NoAction, map: "FK_register_payment")
+  tenant_master                           tenant_master @relation(fields: [tenant_id], references: [tenant_id], onDelete: SetNull, onUpdate: NoAction, map: "fk_register_tenant")
+  locations                               locations?    @relation(fields: [location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([role], map: "idx_register_role")
+}
+
+model telegram_links {
+  id           Int       @id @default(autoincrement())
+  chat_id      BigInt    @unique
+  phone_number String    @db.VarChar(20)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([chat_id], map: "idx_telegram_links_chat_id")
+  @@index([phone_number], map: "idx_telegram_links_phone_number")
+}
+
+model users {
+  id         Int       @id @default(autoincrement())
+  email      String    @unique @db.VarChar(255)
+  password   String    @db.VarChar(255)
+  name       String?   @db.VarChar(255)
+  role       String?   @default("user") @db.VarChar(50)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
 }
