@@ -23,24 +23,23 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Check if user's account is active
-    if (!user.isActive) {
-      throw new UnauthorizedException('Your account is inactive. Please contact support.');
-    }
-
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!user.password_hash) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
     // Check if user has a tenant associated
-    if (!user.tenantId) {
+    if (!user.tenant_id) {
       throw new UnauthorizedException('No tenant associated with this account');
     }
 
     // Validate tenant's license
-    const licenseValidation = await this.validateTenantLicense(user.tenantId);
+    const licenseValidation = await this.validateTenantLicense(user.tenant_id);
     
     if (!licenseValidation.isValid) {
       if (licenseValidation.reason === 'NO_LICENSE') {
@@ -56,15 +55,21 @@ export class AuthService {
 
     // Return user data without sensitive information
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...result } = user;
+    const { password_hash, ...result } = user;
     return result;
   }
 
   async login(user: any) {
+    const fullName = [
+      user.first_name,
+      user.middle_name,
+      user.last_name
+    ].filter(Boolean).join(' ').trim();
+
     const payload = { 
       email: user.email, 
       sub: user.id,
-      tenantId: user.tenantId,
+      tenantId: user.tenant_id,
       role: user.role
     };
     
@@ -73,9 +78,12 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        name: `${user.firstName} ${user.lastName}`.trim(),
+        name: fullName,
         role: user.role,
-        tenantId: user.tenantId
+        tenantId: user.tenant_id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        middleName: user.middle_name
       }
     };
   }
